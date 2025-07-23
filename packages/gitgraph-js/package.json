@@ -45,7 +45,6 @@
     "build:tsc": "tsc",
     "build:bundle": "rollup -c rollup.config.js",
     "build:minify": "uglifyjs -c -m -o ./lib/gitgraph.umd.min.js -- ./lib/gitgraph.umd.js",
-    "prepare": "npm run build",
     "version": "auto-changelog -p -l 0 --tag-prefix @gitgraph/js@ && git add CHANGELOG.md"
   },
   "dependencies": {

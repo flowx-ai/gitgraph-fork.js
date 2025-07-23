@@ -16,6 +16,7 @@ import {
   Orientation,
   TemplateName,
   templateExtend,
+  TemplateOptions,
 } from "@gitgraph/core";
 
 import {
@@ -55,6 +56,10 @@ export {
   TemplateName,
   templateExtend,
   MergeStyle,
+  Commit,
+  GitgraphCore,
+  GitgraphOptions,
+  TemplateOptions,
 };
 
 interface CommitYWithOffsets {

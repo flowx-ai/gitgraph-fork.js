@@ -2,7 +2,8 @@ import { Branch, DELETED_BRANCH_NAME, createDeletedBranch } from "./branch";
 import { Commit } from "./commit";
 import { createGraphRows, GraphRows } from "./graph-rows";
 import { Mode } from "./mode";
-import { BranchesOrder, CompareBranchesOrder } from "./branches-order";
+import { CompareBranchesOrder } from "./branches-order";
+import { ColumnManager } from "./column-manager";
 import {
   Template,
   TemplateOptions,
@@ -276,7 +277,7 @@ class GitgraphCore<TNode = SVGElement> {
     );
 
     const rows = createGraphRows(this.mode, commitsToRender);
-    const branchesOrder = new BranchesOrder<TNode>(
+    const branchesOrder = new ColumnManager<TNode>(
       commitsWithBranches,
       this.template.colors,
       this.branchesOrderFunction,
@@ -332,7 +333,7 @@ class GitgraphCore<TNode = SVGElement> {
     commits: Array<Commit<TNode>>,
     branchesPaths: BranchesPaths<TNode>,
   ): void {
-    const branchesOrder = new BranchesOrder<TNode>(
+    const branchesOrder = new ColumnManager<TNode>(
       commits,
       this.template.colors,
       this.branchesOrderFunction,
@@ -417,7 +418,7 @@ class GitgraphCore<TNode = SVGElement> {
    */
   private withPosition(
     rows: GraphRows<TNode>,
-    branchesOrder: BranchesOrder<TNode>,
+    branchesOrder: ColumnManager<TNode>,
     commit: Commit<TNode>,
   ): Commit<TNode> {
     const row = rows.getRowOf(commit.hash);
@@ -463,7 +464,7 @@ class GitgraphCore<TNode = SVGElement> {
    * @param branchName Name of the branch
    */
   private getBranchDefaultColor(
-    branchesOrder: BranchesOrder<TNode>,
+    branchesOrder: ColumnManager<TNode>,
     branchName: Branch["name"],
   ): string {
     return branchesOrder.getColorOf(branchName);

@@ -40,7 +40,6 @@
     "build:bundle": "rollup -c rollup.config.js",
     "build:browserify": "browserify ./lib/bundle.umd.js -o ./lib/bundle.js",
     "build:minify": "uglifyjs -c -m -o ./lib/bundle.min.js -- ./lib/bundle.js",
-    "prepare": "npm run build",
     "version": "auto-changelog -p -l 0 --tag-prefix @gitgraph/core@ && git add CHANGELOG.md",
     "prepublishOnly": "npm run test"
   },
