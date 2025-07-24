@@ -70,26 +70,38 @@ class ColumnManager<TNode> {
         // Determine parent branch by looking at the previous commit
         let parentBranch: string | undefined;
         let parentCommitHash: string | undefined;
-        if (index > 0) {
+        if (index > 0 && commit.parents.length > 0) {
           // Look for the parent commit that this branch was created from
           parentCommitHash = commit.parents[0];
           if (parentCommitHash) {
+            // Find the actual parent commit in the history
             const parentCommit = commits.find(
               (c, i) => i < index && c.hash === parentCommitHash,
             );
             if (parentCommit) {
               parentBranch = parentCommit.branchToDisplay;
+              
+              // Special case: if this is the first commit of a branch and the parent
+              // has the same branch name (not a real branch creation), keep looking
+              const prevCommit = index > 0 ? commits[index - 1] : null;
+              if (prevCommit && prevCommit.hash === parentCommitHash && 
+                  prevCommit.branchToDisplay !== branchName) {
+                // This is actually a branch creation from the previous commit's branch
+                parentBranch = prevCommit.branchToDisplay;
+              }
             }
           }
         }
 
-        this.branches.set(branchName, {
+        const lifecycle = {
           name: branchName,
           firstCommitIndex: index,
           lastCommitIndex: index,
           parentBranch,
           parentCommitHash: parentCommitHash,
-        });
+        };
+        
+        this.branches.set(branchName, lifecycle);
       } else {
         const lifecycle = this.branches.get(branchName);
         if (lifecycle) {
@@ -99,6 +111,7 @@ class ColumnManager<TNode> {
 
       // Check if this is a merge commit
       if (commit.parents.length > 1) {
+        
         // Find branches that were merged
         commits.forEach((parentCommit, parentIndex) => {
           if (
@@ -136,25 +149,49 @@ class ColumnManager<TNode> {
       );
     }
 
-    // Track which columns are free at each point
-    const columnsInUse: Map<number, BranchLifecycle | null> = new Map();
+    // Track which columns are occupied by which branches at any point in time
+    const columnOccupancy: Map<number, BranchLifecycle[]> = new Map();
 
     sortedBranches.forEach((branch) => {
-      // Find the first available column
+      // Main/master branch always gets column 0
+      if (branch.name === "main" || branch.name === "master") {
+        columnOccupancy.set(0, [branch]);
+        this.columnAssignments.set(branch.name, 0);
+        branch.column = 0;
+        return;
+      }
+
+      // Find the first available column for other branches
       let column = 0;
       let foundColumn = false;
 
       while (!foundColumn) {
-        const occupant = columnsInUse.get(column);
-
-        if (!occupant || this.canReuseColumn(occupant, branch)) {
-          // Column is free or can be reused
-          columnsInUse.set(column, branch);
+        const occupants = columnOccupancy.get(column) || [];
+        
+        if (occupants.length === 0) {
+          columnOccupancy.set(column, [branch]);
           this.columnAssignments.set(branch.name, column);
           branch.column = column;
           foundColumn = true;
         } else {
-          column++;
+          // Check if we can reuse this column (all occupants must be compatible)
+          let canReuseColumn = true;
+          for (const occupant of occupants) {
+            if (!this.canReuseColumn(occupant, branch)) {
+              canReuseColumn = false;
+              break;
+            }
+          }
+          
+          if (canReuseColumn) {
+            occupants.push(branch);
+            columnOccupancy.set(column, occupants);
+            this.columnAssignments.set(branch.name, column);
+            branch.column = column;
+            foundColumn = true;
+          } else {
+            column++;
+          }
         }
       }
     });
@@ -186,21 +223,34 @@ class ColumnManager<TNode> {
     ) {
       return false;
     }
-
-    // Can reuse if the occupant was merged before the candidate started
-    if (
-      occupant.mergedAt !== undefined &&
-      occupant.mergedAt < candidate.firstCommitIndex
-    ) {
-      return true;
-    }
-
-    // Can't reuse if the occupant hasn't been merged yet (still active/WIP)
-    if (occupant.mergedAt === undefined) {
+    
+    // Additional check: If branches have overlapping indices, they can't share a column
+    // For visual purposes, a branch extends from its first commit to its merge point
+    const candidateStart = candidate.firstCommitIndex;
+    const candidateEnd = candidate.mergedAt !== undefined ? candidate.mergedAt : candidate.lastCommitIndex;
+    const occupantStart = occupant.firstCommitIndex;
+    const occupantEnd = occupant.mergedAt !== undefined ? occupant.mergedAt : occupant.lastCommitIndex;
+    
+    if (candidateStart <= occupantEnd && candidateEnd >= occupantStart) {
       return false;
     }
 
-    // Can reuse if there's no overlap in their active periods
-    return occupant.lastCommitIndex < candidate.firstCommitIndex;
+    // Check if there's no overlap in their active periods
+    // A branch is active until its merge point (if merged) or assumed to continue indefinitely if not merged
+    const occupantEndIndex = occupant.mergedAt !== undefined ? occupant.mergedAt : Number.MAX_SAFE_INTEGER;
+    const candidateEndIndex = candidate.mergedAt !== undefined ? candidate.mergedAt : Number.MAX_SAFE_INTEGER;
+    
+    // Can reuse if the occupant ends before the candidate starts
+    if (occupantEndIndex < candidate.firstCommitIndex) {
+      return true;
+    }
+    
+    // Cannot reuse if there's any overlap
+    const hasOverlap = candidate.firstCommitIndex <= occupantEndIndex;
+    if (hasOverlap) {
+      return false;
+    }
+    
+    return false;
   }
 }

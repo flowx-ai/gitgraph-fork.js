@@ -127,9 +127,9 @@ function createGitgraph(
     svg.innerHTML = "";
     svg.appendChild(
       createG({
-        // Translate graph left => left-most branch label is not cropped (horizontal)
-        // Translate graph down => top-most commit tooltip is not cropped
-        translate: { x: BRANCH_LABEL_PADDING_X, y: TOOLTIP_PADDING },
+        // Translate graph right to make room for left-side branch labels
+        // Using a default offset that will be adjusted later based on actual label widths
+        translate: { x: 100, y: TOOLTIP_PADDING },
         children: [renderBranchesPaths(branchesPaths), $commits],
       }),
     );
@@ -202,19 +202,17 @@ function createGitgraph(
       Object.keys(commitsElements).forEach((commitHash) => {
         const { branchLabel, tags, message } = commitsElements[commitHash];
 
-        // We'll store X position progressively and translate elements.
-        let x = commitMessagesX;
-
+        // Position branch labels on the left side with right alignment
         if (branchLabel) {
-          moveElement(branchLabel, x);
-
-          // BBox width misses box padding
-          // => they are set later, on branch label update.
-          // We would need to make branch label update happen before to solve it.
-          const branchLabelWidth =
-            branchLabel.getBBox().width + 2 * BRANCH_LABEL_PADDING_X;
-          x += branchLabelWidth + padding;
+          // Get the width of the label
+          const branchLabelWidth = branchLabel.getBBox().width + 2 * BRANCH_LABEL_PADDING_X;
+          // Position label to the left of the graph, right-aligned at x=-padding
+          const labelX = -padding - branchLabelWidth;
+          moveElement(branchLabel, labelX);
         }
+
+        // Position tags and messages on the right side
+        let x = commitMessagesX;
 
         tags.forEach((tag) => {
           moveElement(tag, x);
@@ -234,7 +232,21 @@ function createGitgraph(
     }
 
     function adaptGraphDimensions(adaptToContainer: boolean): void {
-      const { height, width } = svg.getBBox();
+      const svgBBox = svg.getBBox();
+      console.log('[adaptGraphDimensions] Initial getBBox:', { width: svgBBox.width, height: svgBBox.height });
+
+      // Calculate the maximum branch label width
+      let maxBranchLabelWidth = 0;
+      Object.keys(commitsElements).forEach((commitHash) => {
+        const { branchLabel } = commitsElements[commitHash];
+        if (branchLabel) {
+          const branchLabelWidth = branchLabel.getBBox().width + 2 * BRANCH_LABEL_PADDING_X;
+          console.log('[adaptGraphDimensions] Branch label width:', branchLabelWidth);
+          maxBranchLabelWidth = Math.max(maxBranchLabelWidth, branchLabelWidth);
+        }
+      });
+
+      console.log('[adaptGraphDimensions] Max branch label width:', maxBranchLabelWidth);
 
       // FIXME: In horizontal mode, we mimic @gitgraph/react behavior
       // => it gets re-rendered after offsets are computed
@@ -245,11 +257,11 @@ function createGitgraph(
       const horizontalCustomOffset = 50;
       const verticalCustomOffset = 20;
 
+      const labelSpace = maxBranchLabelWidth + 20;
       const widthOffset = gitgraph.isHorizontal
         ? horizontalCustomOffset
-        : // Add `TOOLTIP_PADDING` so we don't crop the tooltip text.
-          // Add `BRANCH_LABEL_PADDING_X` so we don't cut branch label.
-          BRANCH_LABEL_PADDING_X + TOOLTIP_PADDING;
+        : // Add right-side tooltip padding
+          TOOLTIP_PADDING;
 
       const heightOffset = gitgraph.isHorizontal
         ? horizontalCustomOffset
@@ -257,16 +269,55 @@ function createGitgraph(
           // Add `BRANCH_LABEL_PADDING_Y` so we don't crop branch label.
           BRANCH_LABEL_PADDING_Y + TOOLTIP_PADDING + verticalCustomOffset;
 
+      // The initial translation we used for the main group
+      const initialTranslateX = 100;
+      
+      // Adjust viewBox to include left-side branch labels
+      const viewBoxX = gitgraph.isVertical ? -labelSpace : 0;
+      
+      // Total viewBox width should include:
+      // - The initial translation (100)
+      // - The content width 
+      // - The label space on the left
+      // - Plus any right-side padding
+      // Since viewBox starts at negative X, we need to span from there to the right edge
+      const viewBoxWidth = initialTranslateX + svgBBox.width + labelSpace + widthOffset;
+
+      console.log('[adaptGraphDimensions] Calculated dimensions:', {
+        labelSpace,
+        widthOffset,
+        viewBoxX,
+        viewBoxWidth,
+        initialTranslateX,
+        svgBBoxWidth: svgBBox.width,
+        adaptToContainer,
+        isVertical: gitgraph.isVertical,
+        BRANCH_LABEL_PADDING_X,
+        TOOLTIP_PADDING
+      });
+
       if (adaptToContainer) {
         svg.setAttribute("preserveAspectRatio", "xMinYMin meet");
         svg.setAttribute(
           "viewBox",
-          `0 0 ${width + widthOffset} ${height + heightOffset}`,
+          `${viewBoxX} 0 ${viewBoxWidth} ${svgBBox.height + heightOffset}`,
         );
       } else {
-        svg.setAttribute("width", (width + widthOffset).toString());
-        svg.setAttribute("height", (height + heightOffset).toString());
+        // Set the actual SVG dimensions to include everything
+        svg.setAttribute("width", viewBoxWidth.toString());
+        svg.setAttribute("height", (svgBBox.height + heightOffset).toString());
+        // Set viewBox to show the full content including left labels
+        svg.setAttribute(
+          "viewBox",
+          `${viewBoxX} 0 ${viewBoxWidth} ${svgBBox.height + heightOffset}`,
+        );
       }
+      
+      console.log('[adaptGraphDimensions] Final SVG attributes:', {
+        width: svg.getAttribute("width"),
+        height: svg.getAttribute("height"),
+        viewBox: svg.getAttribute("viewBox")
+      });
     }
   }
 
@@ -274,7 +325,7 @@ function createGitgraph(
     const transform = target.getAttribute("transform") || "translate(0, 0)";
     target.setAttribute(
       "transform",
-      transform.replace(/translate\(([\d\.]+),/, `translate(${x},`),
+      transform.replace(/translate\(([\d\.\-]+),/, `translate(${x},`),
     );
   }
 
