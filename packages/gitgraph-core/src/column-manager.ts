@@ -80,12 +80,15 @@ class ColumnManager<TNode> {
             );
             if (parentCommit) {
               parentBranch = parentCommit.branchToDisplay;
-              
+
               // Special case: if this is the first commit of a branch and the parent
               // has the same branch name (not a real branch creation), keep looking
               const prevCommit = index > 0 ? commits[index - 1] : null;
-              if (prevCommit && prevCommit.hash === parentCommitHash && 
-                  prevCommit.branchToDisplay !== branchName) {
+              if (
+                prevCommit &&
+                prevCommit.hash === parentCommitHash &&
+                prevCommit.branchToDisplay !== branchName
+              ) {
                 // This is actually a branch creation from the previous commit's branch
                 parentBranch = prevCommit.branchToDisplay;
               }
@@ -100,7 +103,7 @@ class ColumnManager<TNode> {
           parentBranch,
           parentCommitHash: parentCommitHash,
         };
-        
+
         this.branches.set(branchName, lifecycle);
       } else {
         const lifecycle = this.branches.get(branchName);
@@ -111,7 +114,6 @@ class ColumnManager<TNode> {
 
       // Check if this is a merge commit
       if (commit.parents.length > 1) {
-        
         // Find branches that were merged
         commits.forEach((parentCommit, parentIndex) => {
           if (
@@ -167,7 +169,7 @@ class ColumnManager<TNode> {
 
       while (!foundColumn) {
         const occupants = columnOccupancy.get(column) || [];
-        
+
         if (occupants.length === 0) {
           columnOccupancy.set(column, [branch]);
           this.columnAssignments.set(branch.name, column);
@@ -182,7 +184,7 @@ class ColumnManager<TNode> {
               break;
             }
           }
-          
+
           if (canReuseColumn) {
             occupants.push(branch);
             columnOccupancy.set(column, occupants);
@@ -223,34 +225,42 @@ class ColumnManager<TNode> {
     ) {
       return false;
     }
-    
+
     // Additional check: If branches have overlapping indices, they can't share a column
     // For visual purposes, a branch extends from its first commit to its merge point
     const candidateStart = candidate.firstCommitIndex;
-    const candidateEnd = candidate.mergedAt !== undefined ? candidate.mergedAt : candidate.lastCommitIndex;
+    const candidateEnd =
+      candidate.mergedAt !== undefined
+        ? candidate.mergedAt
+        : candidate.lastCommitIndex;
     const occupantStart = occupant.firstCommitIndex;
-    const occupantEnd = occupant.mergedAt !== undefined ? occupant.mergedAt : occupant.lastCommitIndex;
-    
+    const occupantEnd =
+      occupant.mergedAt !== undefined
+        ? occupant.mergedAt
+        : occupant.lastCommitIndex;
+
     if (candidateStart <= occupantEnd && candidateEnd >= occupantStart) {
       return false;
     }
 
     // Check if there's no overlap in their active periods
     // A branch is active until its merge point (if merged) or assumed to continue indefinitely if not merged
-    const occupantEndIndex = occupant.mergedAt !== undefined ? occupant.mergedAt : Number.MAX_SAFE_INTEGER;
-    const candidateEndIndex = candidate.mergedAt !== undefined ? candidate.mergedAt : Number.MAX_SAFE_INTEGER;
-    
+    const occupantEndIndex =
+      occupant.mergedAt !== undefined
+        ? occupant.mergedAt
+        : Number.MAX_SAFE_INTEGER;
+
     // Can reuse if the occupant ends before the candidate starts
     if (occupantEndIndex < candidate.firstCommitIndex) {
       return true;
     }
-    
+
     // Cannot reuse if there's any overlap
     const hasOverlap = candidate.firstCommitIndex <= occupantEndIndex;
     if (hasOverlap) {
       return false;
     }
-    
+
     return false;
   }
 }
