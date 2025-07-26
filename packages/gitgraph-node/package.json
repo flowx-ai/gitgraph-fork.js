@@ -34,7 +34,7 @@
     "version": "auto-changelog -p -l 0 --tag-prefix @gitgraph/node@ && git add CHANGELOG.md"
   },
   "dependencies": {
-    "@gitgraph/core": "1.5.0",
+    "@gitgraph/core": "3.6.0",
     "chalk": "2.4.1",
     "lodash": "4.17.13"
   },
